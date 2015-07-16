@@ -271,6 +271,97 @@ def plot_model(weights,X,y,predict,cm=plt.cm.RdBu,
 
 plot_model(w,X_train[:,1:],y_train,predict_logreg_prob,alpha =0.9,pad=0.1,arrow_width=0.6)
 
+# <headingcell level=2>
+
+# using scipy's BFGS optimizer
+
 # <codecell>
 
+from scipy.optimize import fmin_bfgs
+
+import numpy as np
+import pylab as pl
+
+def add_ones(X):
+    return np.column_stack((np.ones((X.shape[0], 1)), X))
+
+def logistic(t):
+    """ logistic function - returns 1 / (1 + exp(-t))
+    
+    Using formula to calculate logistic in a stable fashion see
+    http://fa.bianp.net/blog/2013/numerical-optimizers-for-logistic-regression/
+    """
+    
+    idx = t > 0
+    out = np.empty(t.size, dtype=np.float)
+    out[idx] = 1. / (1 + np.exp(-t[idx]))
+    exp_t = np.exp(t[~idx])
+    out[~idx] = exp_t / (1. + exp_t)
+    return out
+
+def logreg_cost(w,X,y,C=0.1):
+    """ logistic regresion cost/loss function
+    
+    Using np.logaddexp for stability
+    includes l2 regularization
+    
+    Arguments:
+        w - modal weights
+        X - data matrix
+        y - vector of labels 0/1
+        C - l2 regularaization hyperparameter
+        
+    Returns:
+        scaler cost/loss   
+    """    
+    norm = C*0.5*(w.dot(w))
+    Xw =X.dot(w)
+    nll =  ( y.dot(np.logaddexp(0,-Xw))  + (1.0-y).dot(np.logaddexp(0,Xw)))
+    return nll + norm
+
+def logreg_gradient(w,X,y,C=0.1):
+    """ logistic regression gradient function
+        
+    Arguments:
+        w - modal weights
+        X - data matrix
+        y - vector of labels
+        C - l2 regularaization hyperparameter
+        
+    Returns:
+        gradient vector
+    """        
+    p   = logistic(X.dot(w))
+    Xt  = X.T
+    res = Xt.dot(p - y)
+    return res + C*w
+
+def predict_logreg_prob(w,X):
+    return logistic(X.dot(w))
+
+def predict_logreg(w,X):
+    return [1.0 if p > 0.5 else 0.0 for p in predict_logreg_prob(w,X)]
+
+def error_rate(w,X,y,predict):
+    y_predict = predict(w,X)
+    return np.mean( y == y_predict )
+
+C =1.0
+cost_func = lambda w,X,y: logreg_cost(w,X,y,C)
+grad_func = lambda w,X,y: logreg_gradient(w,X, y ,C)    
+
+# using 
+w = fmin_bfgs( f       = cost_func,
+               x0      = np.zeros(X_train.shape[1]),
+               fprime  = grad_func,
+               args    = (X_train,y_train),
+               maxiter = 400,
+               disp    = 1)
+
+#print "weight vector: ",w
+print "\nTrain Accuracy: ", error_rate(w,X_train,y_train,predict_logreg)
+print "Test Accuracy: ",error_rate(w,X_test,y_test,predict_logreg)
+print
+print "w_true: ", w_true
+print "w: ", w
 
